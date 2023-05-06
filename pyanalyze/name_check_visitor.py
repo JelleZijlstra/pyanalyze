@@ -412,7 +412,7 @@ class _AttrContext(CheckerAttrContext):
     def should_ignore_none_attributes(self) -> bool:
         return self.ignore_none
 
-    def get_literal_length_limit(self) -> int | None:
+    def get_literal_length_limit(self) -> Optional[int]:
         return self.visitor.options.get_value_for(LiteralLengthLimit)
 
 
