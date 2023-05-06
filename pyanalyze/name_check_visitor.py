@@ -428,7 +428,7 @@ class LiteralLengthLimit(IntegerOption):
     """For literals with more than this many values and no explicit type,
     we simplify the type."""
 
-    default_value = 25
+    default_value = 100
     name = "literal_length_limit"
 
 
