@@ -189,6 +189,7 @@ from .value import (
     SubclassValue,
     TypedValue,
     TypeVarValue,
+    simplify_sequence,
     unannotate_value,
     UnboundMethodValue,
     UNINITIALIZED_VALUE,
@@ -5402,7 +5403,7 @@ def build_stacked_scopes(
         for key, value in module.__dict__.items():
             val = type_from_annotations(annotations, key, globals=module.__dict__)
             if val is None:
-                val = KnownValue(value)
+                val = KnownValue(simplify_sequence(value))
             module_vars[key] = val
     return StackedScopes(module_vars, module, simplification_limit=simplification_limit)
 

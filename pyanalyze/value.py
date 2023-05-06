@@ -2700,6 +2700,28 @@ def replace_known_sequence_value(value: Value) -> Value:
     return value
 
 
+def simplify_sequence(obj: object) -> Value:
+    """Helper to simplify complex unannotated types."""
+    if type(obj) is dict:
+        key_types = _unify_types(obj.keys())
+        value_types = _unify_types(obj.values())
+        return GenericValue(dict, [key_types, value_types])
+    elif type(obj) is list or type(obj) is set:
+        element_type = _unify_types(obj)
+        return GenericValue(type(obj), [element_type])
+    else:
+        return KnownValue(obj)
+
+
+def _unify_types(objs: Iterable[object]) -> Value:
+    try:
+        types = {type(obj) for obj in objs}
+    except Exception:
+        # unhashable types
+        return AnyValue(AnySource.inference)
+    return unite_values(*[TypedValue(t) for t in types])
+
+
 def extract_typevars(value: Value) -> Iterable[TypeVarLike]:
     for val in value.walk_values():
         if isinstance(val, TypeVarValue):

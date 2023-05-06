@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Simplify the types of complex unannotated globals to improve performance (#621)
 - Infer the signature for built-in static methods, such as `dict.fromkeys` (#619)
 - Fix type inference for subscripting on `Sequence` (#618)
 - Improve support for Cythonized methods (#617)

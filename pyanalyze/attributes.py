@@ -38,6 +38,7 @@ from .value import (
     UnboundMethodValue,
     UNINITIALIZED_VALUE,
     Value,
+    simplify_sequence,
 )
 
 # these don't appear to be in the standard types module
@@ -381,6 +382,31 @@ def _unwrap_value_from_typed(result: Value, typ: type, ctx: AttrContext) -> Valu
         return result
 
 
+def _get_attribute_from_module(mod: types.ModuleType, ctx: AttrContext) -> Value:
+    try:
+        annotations = mod.__annotations__
+    except Exception:
+        pass
+    else:
+        attr_type = type_from_annotations(
+            annotations, ctx.attr, ctx=AnnotationsContext(ctx, mod)
+        )
+        if attr_type is not None:
+            return attr_type
+
+    try:
+        result = getattr(mod, ctx.attr)
+    except AttributeError:
+        pass
+    except Exception:
+        # It exists, but has a broken __getattr__ or something
+        return AnyValue(AnySource.inference)
+    else:
+        return simplify_sequence(result)
+
+    return UNINITIALIZED_VALUE
+
+
 def _get_attribute_from_known(obj: object, ctx: AttrContext) -> Value:
     ctx.record_attr_read(type(obj))
 
@@ -394,10 +420,11 @@ def _get_attribute_from_known(obj: object, ctx: AttrContext) -> Value:
         return AnyValue(AnySource.explicit)
 
     # Avoid generating huge Union type with the actual value
-    if obj is sys and ctx.attr == "modules":
-        return GenericValue(dict, [TypedValue(str), TypedValue(types.ModuleType)])
+    if isinstance(obj, types.ModuleType):
+        result = _get_attribute_from_module(obj, ctx)
+    else:
+        result, _, _ = _get_attribute_from_mro(obj, ctx, on_class=True)
 
-    result, _, _ = _get_attribute_from_mro(obj, ctx, on_class=True)
     if (
         isinstance(result, KnownValue)
         and (
