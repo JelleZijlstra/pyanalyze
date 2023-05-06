@@ -5403,7 +5403,7 @@ def build_stacked_scopes(
         for key, value in module.__dict__.items():
             val = type_from_annotations(annotations, key, globals=module.__dict__)
             if val is None:
-                val = KnownValue(simplify_sequence(value))
+                val = simplify_sequence(value)
             module_vars[key] = val
     return StackedScopes(module_vars, module, simplification_limit=simplification_limit)
 
