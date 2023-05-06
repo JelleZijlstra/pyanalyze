@@ -91,6 +91,9 @@ class AttrContext:
     ) -> GenericBases:
         return {}
 
+    def get_literal_length_limit(self) -> Optional[int]:
+        return None
+
 
 def get_attribute(ctx: AttrContext) -> Value:
     root_value = ctx.root_value
@@ -402,7 +405,7 @@ def _get_attribute_from_module(mod: types.ModuleType, ctx: AttrContext) -> Value
         # It exists, but has a broken __getattr__ or something
         return AnyValue(AnySource.inference)
     else:
-        return simplify_sequence(result)
+        return simplify_sequence(result, ctx.get_literal_length_limit())
 
     return UNINITIALIZED_VALUE
 

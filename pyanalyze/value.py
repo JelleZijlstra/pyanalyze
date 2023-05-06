@@ -2700,17 +2700,17 @@ def replace_known_sequence_value(value: Value) -> Value:
     return value
 
 
-def simplify_sequence(obj: object) -> Value:
+def simplify_sequence(obj: object, limit: Optional[int]) -> Value:
     """Helper to simplify complex unannotated types."""
-    if type(obj) is dict:
-        key_types = _unify_types(obj.keys())
-        value_types = _unify_types(obj.values())
-        return GenericValue(dict, [key_types, value_types])
-    elif type(obj) is list or type(obj) is set:
-        element_type = _unify_types(obj)
-        return GenericValue(type(obj), [element_type])
-    else:
-        return KnownValue(obj)
+    if limit is not None:
+        if type(obj) is dict and len(obj) > limit:
+            key_types = _unify_types(obj.keys())
+            value_types = _unify_types(obj.values())
+            return GenericValue(dict, [key_types, value_types])
+        elif (type(obj) is list or type(obj) is set) and len(obj) > limit:
+            element_type = _unify_types(obj)
+            return GenericValue(type(obj), [element_type])
+    return KnownValue(obj)
 
 
 def _unify_types(objs: Iterable[object]) -> Value:

@@ -412,6 +412,9 @@ class _AttrContext(CheckerAttrContext):
     def should_ignore_none_attributes(self) -> bool:
         return self.ignore_none
 
+    def get_literal_length_limit(self) -> int | None:
+        return self.visitor.options.get_value_for(LiteralLengthLimit)
+
 
 class ComprehensionLengthInferenceLimit(IntegerOption):
     """If we iterate over something longer than this, we don't try to infer precise
@@ -419,6 +422,14 @@ class ComprehensionLengthInferenceLimit(IntegerOption):
 
     default_value = 25
     name = "comprehension_length_inference_limit"
+
+
+class LiteralLengthLimit(IntegerOption):
+    """For literals with more than this many values and no explicit type,
+    we simplify the type."""
+
+    default_value = 25
+    name = "literal_length_limit"
 
 
 class UnionSimplificationLimit(IntegerOption):
@@ -1148,6 +1159,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
         self.scopes = build_stacked_scopes(
             self.module,
             simplification_limit=self.options.get_value_for(UnionSimplificationLimit),
+            literal_limit=self.options.get_value_for(LiteralLengthLimit),
         )
         self.node_context = StackedContexts()
         self.asynq_checker = AsynqChecker(
@@ -5391,7 +5403,9 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
 
 
 def build_stacked_scopes(
-    module: Optional[types.ModuleType], simplification_limit: Optional[int] = None
+    module: Optional[types.ModuleType],
+    simplification_limit: Optional[int] = None,
+    literal_limit: Optional[int] = None,
 ) -> StackedScopes:
     # Build a StackedScopes object.
     # Not part of stacked_scopes.py to avoid a circular dependency.
@@ -5403,7 +5417,7 @@ def build_stacked_scopes(
         for key, value in module.__dict__.items():
             val = type_from_annotations(annotations, key, globals=module.__dict__)
             if val is None:
-                val = simplify_sequence(value)
+                val = simplify_sequence(value, literal_limit)
             module_vars[key] = val
     return StackedScopes(module_vars, module, simplification_limit=simplification_limit)
 
