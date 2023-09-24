@@ -162,7 +162,11 @@ class TypeObject:
             if member == "__call__":
                 actual = other_val
             else:
-                actual = ctx.get_attribute_from_value(other_val, member)
+                actual = ctx.get_attribute_from_value(
+                    other_val.get_type_value(), member
+                )
+                if actual is UNINITIALIZED_VALUE:
+                    actual = ctx.get_attribute_from_value(other_val, member)
             if actual is UNINITIALIZED_VALUE:
                 can_assign = CanAssignError(f"{other_val} has no attribute {member!r}")
             else:

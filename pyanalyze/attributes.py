@@ -62,6 +62,14 @@ class AttrContext:
     def root_value(self) -> Value:
         return self.root_composite.value
 
+    def get_root_value(self) -> Value:
+        root_value = self.root_composite.value
+        if isinstance(root_value, TypeVarValue):
+            root_value = root_value.get_fallback_value()
+        if isinstance(root_value, AnnotatedValue):
+            root_value = root_value.value
+        return root_value
+
     def record_usage(self, obj: Any, val: Value) -> None:
         pass
 
@@ -94,12 +102,58 @@ class AttrContext:
         return {}
 
 
+def get_attribute_static(ctx: AttrContext) -> Value:
+    """Like getattr_static: gets an attribute without applying the descriptor protocol."""
+    root_value = ctx.get_root_value()
+    if isinstance(root_value, KnownValue):
+        attribute_value = _get_attribute_from_known(root_value.val, ctx)
+    elif isinstance(root_value, TypedValue):
+        if isinstance(root_value, CallableValue):
+            return root_value.get_asynq_value()
+        if isinstance(root_value, GenericValue):
+            args = root_value.args
+        else:
+            args = ()
+        if isinstance(root_value.typ, str):
+            attribute_value = _get_attribute_from_synthetic_type(
+                root_value.typ, args, ctx
+            )
+        else:
+            attribute_value = _get_attribute_from_typed(root_value.typ, args, ctx)
+    elif isinstance(root_value, SubclassValue):
+        if isinstance(root_value.typ, TypedValue):
+            if isinstance(root_value.typ.typ, str):
+                # TODO handle synthetic types
+                return AnyValue(AnySource.inference)
+            attribute_value = _get_attribute_from_subclass(
+                root_value.typ.typ, root_value.typ, ctx
+            )
+        elif isinstance(root_value.typ, AnyValue):
+            attribute_value = AnyValue(AnySource.from_another)
+        else:
+            attribute_value = _get_attribute_from_known(type, ctx)
+    elif isinstance(root_value, UnboundMethodValue):
+        attribute_value = _get_attribute_from_unbound(root_value, ctx)
+    elif isinstance(root_value, AnyValue):
+        attribute_value = AnyValue(AnySource.from_another)
+    elif isinstance(root_value, MultiValuedValue):
+        raise TypeError("caller should unwrap MultiValuedValue")
+    elif isinstance(root_value, SyntheticModuleValue):
+        module = ".".join(root_value.module_path)
+        attribute_value = ctx.resolve_name_from_typeshed(module, ctx.attr)
+    else:
+        attribute_value = UNINITIALIZED_VALUE
+    if (
+        isinstance(attribute_value, AnyValue) or attribute_value is UNINITIALIZED_VALUE
+    ) and isinstance(ctx.root_value, AnnotatedValue):
+        for guard in ctx.root_value.get_metadata_of_type(HasAttrExtension):
+            if guard.attribute_name == KnownValue(ctx.attr):
+                return guard.attribute_type
+    return attribute_value
+
+
 def get_attribute(ctx: AttrContext) -> Value:
-    root_value = ctx.root_value
-    if isinstance(root_value, TypeVarValue):
-        root_value = root_value.get_fallback_value()
-    elif isinstance(root_value, AnnotatedValue):
-        root_value = root_value.value
+    root_value = ctx.get_root_value()
     if isinstance(root_value, KnownValue):
         attribute_value = _get_attribute_from_known(root_value.val, ctx)
     elif isinstance(root_value, TypedValue):
@@ -324,6 +378,68 @@ def _substitute_typevars(
         tv_map = dict(zip(typevars, generic_args))
         result = result.substitute_typevars(tv_map)
     return result
+
+
+def apply_dunder_get(
+    result: Value, owner_value: Value, instance_value: Value, ctx: AttrContext
+) -> Value:
+    if not isinstance(result, KnownValue):
+        return result
+    typevars = result.typevars if isinstance(result, KnownValueWithTypeVars) else None
+    cls_val = result.val
+    if isinstance(cls_val, property):
+        return ctx.get_property_type_from_argspec(cls_val)
+    elif qcore.inspection.is_classmethod(cls_val):
+        return result
+    elif inspect.ismethod(cls_val):
+        return UnboundMethodValue(ctx.attr, ctx.root_composite, typevars=typevars)
+    elif inspect.isfunction(cls_val):
+        # either a staticmethod or an unbound method
+        try:
+            descriptor = inspect.getattr_static(typ, ctx.attr)
+        except AttributeError:
+            # probably a super call; assume unbound method
+            if ctx.attr != "__new__":
+                return UnboundMethodValue(
+                    ctx.attr, ctx.root_composite, typevars=typevars
+                )
+            else:
+                # __new__ is implicitly a staticmethod
+                return result
+        if isinstance(descriptor, staticmethod) or ctx.attr == "__new__":
+            return result
+        else:
+            return UnboundMethodValue(ctx.attr, ctx.root_composite, typevars=typevars)
+    elif isinstance(cls_val, (MethodDescriptorType, SlotWrapperType)):
+        # built-in method; e.g. scope_lib.tests.SimpleDatabox.get
+        return UnboundMethodValue(ctx.attr, ctx.root_composite, typevars=typevars)
+    elif (
+        _static_hasattr(cls_val, "decorator")
+        and _static_hasattr(cls_val, "instance")
+        and not isinstance(cls_val.instance, type)
+    ):
+        # non-static method
+        return UnboundMethodValue(ctx.attr, ctx.root_composite, typevars=typevars)
+    elif asynq.is_async_fn(cls_val):
+        # static or class method
+        return result
+    elif _static_hasattr(cls_val, "func_code"):
+        # Cython function probably
+        return UnboundMethodValue(ctx.attr, ctx.root_composite, typevars=typevars)
+    elif _static_hasattr(cls_val, "__get__"):
+        typeshed_type = ctx.get_attribute_from_typeshed(typ, on_class=False)
+        if typeshed_type is not UNINITIALIZED_VALUE:
+            return typeshed_type
+        return AnyValue(AnySource.inference)
+    elif TreatClassAttributeAsAny.should_treat_as_any(cls_val, ctx.options):
+        return AnyValue(AnySource.error)
+    else:
+        transformed = ClassAttributeTransformer.transform_attribute(
+            cls_val, ctx.options
+        )
+        if transformed is not None:
+            return transformed
+        return result
 
 
 def _unwrap_value_from_typed(result: Value, typ: type, ctx: AttrContext) -> Value:
