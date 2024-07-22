@@ -54,6 +54,7 @@ from .value import (
     KnownValue,
     KnownValueWithTypeVars,
     MultiValuedValue,
+    SelfT,
     SubclassValue,
     TypeAlias,
     TypedValue,
@@ -323,8 +324,13 @@ class Checker:
                     # Probably because of cythonized methods
                     return ANY_SIGNATURE
                 return_override = get_return_override(sig)
+                if value.typevars is not None and SelfT in value.typevars:
+                    self_composite = Composite(value.typevars[SelfT])
+                else:
+                    self_composite = value.composite
+                # print("COMPOSITS", self_composite, value.composite)
                 bound = make_bound_method(
-                    sig, value.composite, return_override, ctx=self
+                    sig, self_composite, return_override, ctx=self
                 )
                 if bound is not None and value.typevars is not None:
                     bound = bound.substitute_typevars(value.typevars)
@@ -395,7 +401,12 @@ class Checker:
             return None
 
     def get_attribute_from_value(
-        self, root_value: Value, attribute: str, *, prefer_typeshed: bool = False
+        self,
+        root_value: Value,
+        attribute: str,
+        *,
+        prefer_typeshed: bool = False,
+        self_value: Optional[Value] = None,
     ) -> Value:
         if isinstance(root_value, TypeVarValue):
             root_value = root_value.get_fallback_value()
@@ -415,6 +426,7 @@ class Checker:
             skip_unwrap=False,
             prefer_typeshed=prefer_typeshed,
             checker=self,
+            self_value=self_value,
         )
         return get_attribute(ctx)
 
@@ -470,6 +482,12 @@ def _extract_protocol_members(typ: type) -> Set[str]:
 @dataclass
 class CheckerAttrContext(AttrContext):
     checker: Checker
+    self_value: Optional[Value] = None
+
+    def get_self_value(self) -> Value:
+        if self.self_value is not None:
+            return self.self_value
+        return self.root_value
 
     def resolve_name_from_typeshed(self, module: str, name: str) -> Value:
         return self.checker.ts_finder.resolve_name(module, name)

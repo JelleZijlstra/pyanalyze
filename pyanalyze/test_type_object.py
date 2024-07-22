@@ -323,6 +323,23 @@ class TestSyntheticType(TestNameCheckVisitorBase):
             want_p(good)
             want_p(bad)  # E: incompatible_argument
 
+    @assert_passes()
+    def test_annotated_self(self):
+        from typing_extensions import Protocol, TypeVar
+
+        T = TypeVar("T")
+
+        class SupportsGe(Protocol):
+            def __ge__(self: T, __other: T) -> bool:
+                raise NotImplementedError
+
+        def f(x: SupportsGe) -> None:
+            pass
+
+        def capybara(x: str, y: range) -> None:
+            f(x)
+            f(y)
+
 
 class TestHashable(TestNameCheckVisitorBase):
     @assert_passes()

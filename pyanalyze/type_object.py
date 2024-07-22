@@ -6,6 +6,7 @@ An object that represents a type.
 
 import collections.abc
 import inspect
+import traceback
 from dataclasses import dataclass, field
 from typing import Callable, Container, Dict, Sequence, Set, Union, cast
 from unittest import mock
@@ -143,7 +144,9 @@ class TypeObject:
                     f"Cannot assign super object {other_val} to protocol {self}"
                 )
             bounds_map = self._protocol_positive_cache.get(other_val)
+            # print(self, self._protocol_positive_cache)
             if bounds_map is not None:
+                print("FOUND IN CACHE", self, other_val, bounds_map)
                 return bounds_map
             # This is a guard against infinite recursion if the Protocol is recursive
             if ctx.can_assume_compatibility(self, other):
@@ -159,6 +162,8 @@ class TypeObject:
                             result = subresult
                             break
             if not isinstance(result, CanAssignError):
+                print(f"Positive cache: {self} {other_val} -> {result}")
+                traceback.print_stack()
                 self._protocol_positive_cache[other_val] = result
             return result
 
@@ -168,7 +173,7 @@ class TypeObject:
         bounds_maps = []
         for member in self.protocol_members:
             expected = ctx.get_attribute_from_value(
-                self_val, member, prefer_typeshed=True
+                self_val, member, prefer_typeshed=True, self_value=other_val
             )
             # For __call__, we check compatibility with the other object itself.
             if member == "__call__":

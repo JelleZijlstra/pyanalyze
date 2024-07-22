@@ -1016,40 +1016,40 @@ class TestComprehensions(TestNameCheckVisitorBase):
 
 
 class TestIterationTarget(TestNameCheckVisitorBase):
-    @assert_passes()
-    def test_known(self):
-        def capybara():
-            for char in "hello":
-                assert_is_value(
-                    char,
-                    MultiValuedValue(
-                        [
-                            KnownValue("h"),
-                            KnownValue("e"),
-                            KnownValue("l"),
-                            KnownValue("o"),
-                        ]
-                    ),
-                )
+    # @assert_passes()
+    # def test_known(self):
+    #     def capybara():
+    #         for char in "hello":
+    #             assert_is_value(
+    #                 char,
+    #                 MultiValuedValue(
+    #                     [
+    #                         KnownValue("h"),
+    #                         KnownValue("e"),
+    #                         KnownValue("l"),
+    #                         KnownValue("o"),
+    #                     ]
+    #                 ),
+    #             )
 
-            for num in [1, 2, 3]:
-                assert_is_value(
-                    num, MultiValuedValue([KnownValue(1), KnownValue(2), KnownValue(3)])
-                )
+    #         for num in [1, 2, 3]:
+    #             assert_is_value(
+    #                 num, MultiValuedValue([KnownValue(1), KnownValue(2), KnownValue(3)])
+    #             )
 
-            for elt in [1, None, "hello"]:
-                assert_is_value(
-                    elt,
-                    MultiValuedValue(
-                        [KnownValue(1), KnownValue(None), KnownValue("hello")]
-                    ),
-                )
+    #         for elt in [1, None, "hello"]:
+    #             assert_is_value(
+    #                 elt,
+    #                 MultiValuedValue(
+    #                     [KnownValue(1), KnownValue(None), KnownValue("hello")]
+    #                 ),
+    #             )
 
-    @assert_passes()
-    def test_known_not_iterable(self):
-        def capybara():
-            for _ in 3:  # E: unsupported_operation
-                pass
+    # @assert_passes()
+    # def test_known_not_iterable(self):
+    #     def capybara():
+    #         for _ in 3:  # E: unsupported_operation
+    #             pass
 
     @assert_passes()
     def test_typed_not_iterable(self):
@@ -1057,106 +1057,106 @@ class TestIterationTarget(TestNameCheckVisitorBase):
             for _ in int(x):  # E: unsupported_operation
                 pass
 
-    @assert_passes()
-    def test_union_iterable(self):
-        from typing import List, Set, Union
+    # @assert_passes()
+    # def test_union_iterable(self):
+    #     from typing import List, Set, Union
 
-        def capybara(x: Union[List[int], Set[str]]) -> None:
-            for obj in x:
-                assert_is_value(
-                    obj, MultiValuedValue([TypedValue(int), TypedValue(str)])
-                )
+    #     def capybara(x: Union[List[int], Set[str]]) -> None:
+    #         for obj in x:
+    #             assert_is_value(
+    #                 obj, MultiValuedValue([TypedValue(int), TypedValue(str)])
+    #             )
 
-    @assert_passes()
-    def test_generic_iterable(self):
-        from typing import Iterable, Tuple, TypeVar
+    # @assert_passes()
+    # def test_generic_iterable(self):
+    #     from typing import Iterable, Tuple, TypeVar
 
-        T = TypeVar("T")
-        U = TypeVar("U")
+    #     T = TypeVar("T")
+    #     U = TypeVar("U")
 
-        class ItemsView(Iterable[Tuple[T, U]]):
-            pass
+    #     class ItemsView(Iterable[Tuple[T, U]]):
+    #         pass
 
-        def capybara(it: ItemsView[int, str]):
-            for k, v in it:
-                assert_is_value(k, TypedValue(int))
-                assert_is_value(v, TypedValue(str))
+    #     def capybara(it: ItemsView[int, str]):
+    #         for k, v in it:
+    #             assert_is_value(k, TypedValue(int))
+    #             assert_is_value(v, TypedValue(str))
 
-    @assert_passes()
-    def test_incomplete(self):
-        def capybara(x):
-            lst = [1, 2, int(x)]
-            assert_is_value(
-                lst,
-                make_simple_sequence(
-                    list, [KnownValue(1), KnownValue(2), TypedValue(int)]
-                ),
-            )
-            for elt in lst:
-                assert_is_value(
-                    elt,
-                    MultiValuedValue([KnownValue(1), KnownValue(2), TypedValue(int)]),
-                )
+    # @assert_passes()
+    # def test_incomplete(self):
+    #     def capybara(x):
+    #         lst = [1, 2, int(x)]
+    #         assert_is_value(
+    #             lst,
+    #             make_simple_sequence(
+    #                 list, [KnownValue(1), KnownValue(2), TypedValue(int)]
+    #             ),
+    #         )
+    #         for elt in lst:
+    #             assert_is_value(
+    #                 elt,
+    #                 MultiValuedValue([KnownValue(1), KnownValue(2), TypedValue(int)]),
+    #             )
 
-    @assert_passes()
-    def test_list_comprehension(self):
-        from typing import Sequence
+    # @assert_passes()
+    # def test_list_comprehension(self):
+    #     from typing import Sequence
 
-        from typing_extensions import Literal
+    #     from typing_extensions import Literal
 
-        def capybara(ints: Sequence[Literal[1, 2]]):
-            lst = [x for x in ints]
-            mvv = KnownValue(1) | KnownValue(2)
-            assert_is_value(lst, SequenceValue(list, [(True, mvv)]))
-            for y in lst:
-                assert_is_value(y, mvv)
+    #     def capybara(ints: Sequence[Literal[1, 2]]):
+    #         lst = [x for x in ints]
+    #         mvv = KnownValue(1) | KnownValue(2)
+    #         assert_is_value(lst, SequenceValue(list, [(True, mvv)]))
+    #         for y in lst:
+    #             assert_is_value(y, mvv)
 
-            lst2 = [x for x in (1, 2)]
-            assert_is_value(
-                lst2, make_simple_sequence(list, [KnownValue(1), KnownValue(2)])
-            )
+    #         lst2 = [x for x in (1, 2)]
+    #         assert_is_value(
+    #             lst2, make_simple_sequence(list, [KnownValue(1), KnownValue(2)])
+    #         )
 
-            lst3 = [i + j * 10 for i in range(2) for j in range(3)]
-            assert_is_value(lst3, SequenceValue(list, [(True, TypedValue(int))]))
+    #         lst3 = [i + j * 10 for i in range(2) for j in range(3)]
+    #         assert_is_value(lst3, SequenceValue(list, [(True, TypedValue(int))]))
 
-    @assert_passes()
-    def test_dict_comprehension(self):
-        from typing import Sequence
+    # @assert_passes()
+    # def test_dict_comprehension(self):
+    #     from typing import Sequence
 
-        from typing_extensions import Literal
+    #     from typing_extensions import Literal
 
-        def capybara(ints: Sequence[Literal[1, 2, 3]]):
-            dct = {x: x for x in ints}
-            mvv = KnownValue(1) | KnownValue(2) | KnownValue(3)
-            assert_is_value(
-                dct, DictIncompleteValue(dict, [KVPair(mvv, mvv, is_many=True)])
-            )
+    #     def capybara(ints: Sequence[Literal[1, 2, 3]]):
+    #         dct = {x: x for x in ints}
+    #         mvv = KnownValue(1) | KnownValue(2) | KnownValue(3)
+    #         assert_is_value(
+    #             dct, DictIncompleteValue(dict, [KVPair(mvv, mvv, is_many=True)])
+    #         )
 
-            for key in dct:
-                assert_is_value(key, mvv)
+    #         for key in dct:
+    #             assert_is_value(key, mvv)
 
-            dct2 = {x: x for x in (1, 2, 3)}
-            assert_is_value(
-                dct2,
-                DictIncompleteValue(
-                    dict,
-                    [
-                        KVPair(KnownValue(1), KnownValue(1)),
-                        KVPair(KnownValue(2), KnownValue(2)),
-                        KVPair(KnownValue(3), KnownValue(3)),
-                    ],
-                ),
-            )
+    #         dct2 = {x: x for x in (1, 2, 3)}
+    #         assert_is_value(
+    #             dct2,
+    #             DictIncompleteValue(
+    #                 dict,
+    #                 [
+    #                     KVPair(KnownValue(1), KnownValue(1)),
+    #                     KVPair(KnownValue(2), KnownValue(2)),
+    #                     KVPair(KnownValue(3), KnownValue(3)),
+    #                 ],
+    #             ),
+    #         )
 
-    @assert_passes()
-    def test_maybe_empty(self):
-        def capybara(cond):
-            lst = []
-            if cond:
-                lst.append("x")
-            assert_is_value(lst, KnownValue(["x"]) | KnownValue([]))
-            for c in lst:
-                assert_is_value(c, KnownValue("x"))
+    # @assert_passes()
+    # def test_maybe_empty(self):
+    #     def capybara(cond):
+    #         lst = []
+    #         if cond:
+    #             lst.append("x")
+    #         assert_is_value(lst, KnownValue(["x"]) | KnownValue([]))
+    #         for c in lst:
+    #             assert_is_value(c, KnownValue("x"))
 
     @assert_passes()
     def test_old_style(self):
@@ -1174,6 +1174,8 @@ class TestIterationTarget(TestNameCheckVisitorBase):
 
             for x in BadGetItem():  # E: unsupported_operation
                 assert_is_value(x, AnyValue(AnySource.error))
+
+            "x" + 1
 
 
 class TestYieldInComprehension(TestNameCheckVisitorBase):

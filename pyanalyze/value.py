@@ -274,7 +274,12 @@ class CanAssignContext(Protocol):
         return None
 
     def get_attribute_from_value(
-        self, root_value: "Value", attribute: str, *, prefer_typeshed: bool = False
+        self,
+        root_value: "Value",
+        attribute: str,
+        *,
+        prefer_typeshed: bool = False,
+        self_value: Optional["Value"] = None,
     ) -> "Value":
         return UNINITIALIZED_VALUE
 

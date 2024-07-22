@@ -390,6 +390,7 @@ class _AttrContext(CheckerAttrContext):
     node: Optional[ast.AST]
     ignore_none: bool = False
     record_reads: bool = True
+    self_value: Optional[Value] = None
 
     # Needs to be implemented explicitly to work around Cython limitations
     def __init__(
@@ -404,6 +405,7 @@ class _AttrContext(CheckerAttrContext):
         skip_unwrap: bool = False,
         prefer_typeshed: bool = False,
         record_reads: bool = True,
+        self_value: Optional[Value] = None,
     ) -> None:
         super().__init__(
             root_composite,
@@ -418,6 +420,7 @@ class _AttrContext(CheckerAttrContext):
         self.visitor = visitor
         self.ignore_none = ignore_none
         self.record_reads = record_reads
+        self.self_value = self_value
 
     def record_usage(self, obj: object, val: Value) -> None:
         self.visitor._maybe_record_usage(obj, self.attr, val)
@@ -431,6 +434,11 @@ class _AttrContext(CheckerAttrContext):
 
     def should_ignore_none_attributes(self) -> bool:
         return self.ignore_none
+
+    def get_self_value(self) -> Value:
+        if self.self_value is not None:
+            return self.self_value
+        return self.root_composite.value
 
 
 class ComprehensionLengthInferenceLimit(IntegerOption):
@@ -5286,6 +5294,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
         ignore_none: bool = False,
         use_fallback: bool = False,
         prefer_typeshed: bool = False,
+        self_value: Optional[Value] = None,
     ) -> Value:
         """Get an attribute of this value.
 
@@ -5310,6 +5319,8 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                     node,
                     ignore_none=ignore_none,
                     use_fallback=use_fallback,
+                    self_value=self_value,
+                    prefer_typeshed=prefer_typeshed,
                 )
                 if (
                     subresult is UNINITIALIZED_VALUE
@@ -5326,6 +5337,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
             node=node,
             ignore_none=ignore_none,
             prefer_typeshed=prefer_typeshed,
+            self_value=self_value,
         )
         result = attributes.get_attribute(ctx)
         if result is UNINITIALIZED_VALUE and use_fallback and node is not None:
@@ -5333,10 +5345,18 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
         return result
 
     def get_attribute_from_value(
-        self, root_value: Value, attribute: str, *, prefer_typeshed: bool = False
+        self,
+        root_value: Value,
+        attribute: str,
+        *,
+        prefer_typeshed: bool = False,
+        self_value: Optional[Value] = None,
     ) -> Value:
         return self.get_attribute(
-            Composite(root_value), attribute, prefer_typeshed=prefer_typeshed
+            Composite(root_value),
+            attribute,
+            prefer_typeshed=prefer_typeshed,
+            self_value=self_value,
         )
 
     def _get_attribute_fallback(

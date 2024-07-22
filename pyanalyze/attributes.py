@@ -64,6 +64,9 @@ class AttrContext:
     def root_value(self) -> Value:
         return self.root_composite.value
 
+    def get_self_value(self) -> Value:
+        return self.root_value
+
     def record_usage(self, obj: Any, val: Value) -> None:
         pass
 
@@ -285,7 +288,7 @@ def _get_attribute_from_synthetic_type(
         fq_name, on_class=False
     )
     result = _substitute_typevars(fq_name, generic_args, result, provider, ctx)
-    result = set_self(result, ctx.root_value)
+    result = set_self(result, ctx.get_self_value())
     return result
 
 
@@ -305,7 +308,7 @@ def _get_attribute_from_typed(
     if should_unwrap:
         result = _unwrap_value_from_typed(result, typ, ctx)
     ctx.record_usage(typ, result)
-    result = set_self(result, ctx.root_value)
+    result = set_self(result, ctx.get_self_value())
     if ctx.attr == "name" and safe_issubclass(typ, Enum) and result == TypedValue(str):
         return annotate_value(result, [CustomCheckExtension(EnumName(typ))])
     return result
@@ -448,7 +451,7 @@ def _get_attribute_from_known(obj: object, ctx: AttrContext) -> Value:
         )
         and isinstance(ctx.root_value, AnnotatedValue)
     ):
-        result = set_self(result, ctx.root_value)
+        result = set_self(result, ctx.get_self_value())
     elif safe_isinstance(obj, type):
         result = set_self(result, TypedValue(obj))
     if isinstance(obj, (types.ModuleType, type)):
