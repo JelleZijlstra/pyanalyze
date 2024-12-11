@@ -87,6 +87,9 @@ class Checker:
     type_object_cache: dict[Union[type, super, str], TypeObject] = field(
         default_factory=dict, init=False, repr=False
     )
+    type_attribute_cache: dict[type, dict[str, Value]] = field(
+        default_factory=dict, init=False, repr=False
+    )
     assumed_compatibilities: list[tuple[TypeObject, TypeObject]] = field(
         default_factory=list
     )

@@ -70,6 +70,7 @@ class VisitorState(enum.Enum):
 
     collect_names = 1
     check_names = 2
+    collect_attributes = 3
 
 
 class ScopeType(enum.Enum):

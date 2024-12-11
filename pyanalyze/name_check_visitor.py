@@ -1075,6 +1075,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
     checker: Checker
     collector: Optional[CallSiteCollector]
     current_class: Optional[type]
+    current_class_attrs: Optional[dict[str, list[Value]]]
     current_enum_members: Optional[dict[object, str]]
     current_function: Optional[object]
     current_function_info: Optional[FunctionInfo]
@@ -1425,7 +1426,13 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                 self._statement_types.add(typ)
 
     def _is_collecting(self) -> bool:
-        return self.state == VisitorState.collect_names
+        return (
+            self.state == VisitorState.collect_names
+            or self.state == VisitorState.collect_attributes
+        )
+
+    def _is_collecting_attributes(self) -> bool:
+        return self.state == VisitorState.collect_attributes
 
     def _is_checking(self) -> bool:
         return self.state == VisitorState.check_names
@@ -1752,12 +1759,19 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
             current_enum_members = {}
         else:
             current_enum_members = None
+        current_class_attrs: dict[str, list[Value]] = collections.defaultdict(list)
         with (
             qcore.override(self, "current_class", current_class),
             qcore.override(self.asynq_checker, "current_class", current_class),
             qcore.override(self, "current_enum_members", current_enum_members),
+            qcore.override(self, "current_class_attrs", current_class_attrs),
         ):
             yield
+        if current_class is not None:
+            self.checker.type_attribute_cache[current_class] = {
+                attr: unite_values(*values)
+                for attr, values in current_class_attrs.items()
+            }
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Value:
         self._generic_visit_list(node.decorator_list)
@@ -5713,6 +5727,8 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
     def _record_type_attr_set(
         self, typ: type, attr_name: str, node: ast.AST, value: Value
     ) -> None:
+        if typ is self.current_class:
+            self.current_class_attrs[attr_name].append(value)
         if self.attribute_checker is not None:
             self.attribute_checker.record_attribute_set(typ, attr_name, node, value)
 
