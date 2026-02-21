@@ -56,7 +56,7 @@ from unittest.mock import ANY
 import typeshed_client
 from typing_extensions import Protocol, is_typeddict
 
-from pycroscope.input_sig import InputSigValue, ParamSpecSig
+from pycroscope.input_sig import InputSigValue, ParamSpecSig, extract_type_params
 
 from . import attributes, format_strings, importer, node_visitor, type_evaluation
 from .analysis_lib import (
@@ -125,7 +125,6 @@ from .predicates import EqualsPredicate, InPredicate
 from .reexport import ImplicitReexportTracker
 from .relations import check_hashability, intersect_multi
 from .safe import (
-    all_of_type,
     is_dataclass_type,
     is_hashable,
     safe_getattr,
@@ -1777,6 +1776,8 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                     error_node, f"Undefined name: {node.id}", ErrorCode.undefined_name
                 )
             return AnyValue(AnySource.error), origin
+        if isinstance(value, InputSigValue):
+            return value, origin
         value_for_subvals = replace_fallback(value)
         if isinstance(value_for_subvals, MultiValuedValue):
             subvals = value_for_subvals.vals
@@ -2668,6 +2669,8 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                 )
                 return True
             return self.check_deprecation(node, value.value)
+        if isinstance(value, InputSigValue):
+            return False
         value = replace_fallback(value)
         if isinstance(value, UnboundMethodValue):
             method = value.get_method()
@@ -4808,10 +4811,17 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
 
     def visit_type_param_values(
         self, type_params: Sequence[ast.AST]
-    ) -> Sequence[TypeVarValue]:
-        type_param_values = [self.visit(param) for param in type_params]
-        assert all_of_type(type_param_values, TypeVarValue)
-        return type_param_values
+    ) -> Sequence[Value]:
+        return [self.visit(param) for param in type_params]
+
+    def _get_type_alias_type_params(
+        self, type_param_values: Sequence[Value]
+    ) -> Sequence[object]:
+        return tuple(
+            type_param
+            for type_param_value in type_param_values
+            for type_param in extract_type_params(type_param_value)
+        )
 
     if sys.version_info >= (3, 12):
 
@@ -4853,7 +4863,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                         self.module.__name__ if self.module is not None else "",
                         TypeAlias(
                             lambda: type_from_value(value, self, node),
-                            lambda: tuple(val.typevar for val in type_param_values),
+                            lambda: self._get_type_alias_type_params(type_param_values),
                         ),
                     )
             set_value, _ = self._set_name_in_scope(name, node, alias_val)

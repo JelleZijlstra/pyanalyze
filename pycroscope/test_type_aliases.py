@@ -103,6 +103,16 @@ class TestTypeAliasType(TestNameCheckVisitorBase):
         )
 
     @skip_before((3, 12))
+    def test_312_generic_with_paramspec_and_typevartuple(self):
+        self.assert_passes(
+            """
+            from typing import Callable
+
+            type GoodAlias[S1, *S2, **S3] = Callable[S3, S1] | tuple[*S2]
+        """
+        )
+
+    @skip_before((3, 12))
     def test_312_local_alias(self):
         self.assert_passes(
             """
